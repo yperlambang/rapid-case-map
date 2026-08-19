@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Peta Kasus Cepat</title>
+<title>RapidMap</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
@@ -11,14 +11,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#122A26;
-    --ink-soft:#4A625D;
+    --ink:#3d2b28;
+    --ink-soft:#a28e8b;
     --surface:#FFFFFF;
-    --bg:#EEF3F1;
-    --line:#D6E0DC;
-    --green:#0E7B5B;
-    --green-dark:#0A5C44;
-    --amber:#B4690E;
+    --bg:#f7f2ec;
+    --line:#e8ded4;
+    --green:#5c3934;
+    --green-dark:#42231f;
+    --amber:#8a5a2b;
+    --header:#d4b495;
     --radius:10px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -30,7 +31,7 @@
     display:flex;flex-direction:column;
   }
   header{
-    background:var(--surface);
+    background:var(--header);
     border-bottom:1px solid var(--line);
     padding:10px 16px;
     display:flex;align-items:center;gap:12px;flex-wrap:wrap;
@@ -40,11 +41,11 @@
     width:26px;height:26px;border-radius:7px;background:var(--green);
     display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;
   }
-  .brand h1{font-size:15px;font-weight:800;letter-spacing:-.01em}
-  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft)}
+  .brand h1{font-size:15px;font-weight:800;letter-spacing:-.01em;color:#5c3934}
+  .brand small{display:block;font-size:11px;font-weight:500;color:#7a4f47}
   #stats{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
   .chip{
-    background:var(--bg);border:1px solid var(--line);border-radius:999px;
+    background:var(--surface);border:1px solid var(--line);border-radius:999px;
     padding:4px 12px;font-size:12px;font-weight:600;color:var(--ink-soft);
   }
   .chip b{color:var(--ink);font-weight:800}
@@ -93,9 +94,9 @@
   .field{display:flex;flex-direction:column;gap:4px}
   .field label{font-size:11.5px;font-weight:600;color:var(--ink-soft)}
   #msg{font-size:12px;line-height:1.5;border-radius:var(--radius);padding:10px 12px;display:none}
-  #msg.ok{display:block;background:#E7F3EE;color:var(--green-dark)}
-  #msg.warn{display:block;background:#FBF1E2;color:var(--amber)}
-  #msg.err{display:block;background:#FBE7E7;color:#9C2B2B}
+  #msg.ok{display:block;background:#e6efe3;color:#3d6b4f}
+  #msg.warn{display:block;background:#f6ead6;color:#8a5a2b}
+  #msg.err{display:block;background:#f7e4e0;color:#9C2B2B}
   .toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer}
   .toggle input{accent-color:var(--green);width:15px;height:15px}
   #legend{display:flex;flex-direction:column;gap:6px}
@@ -123,10 +124,9 @@
 
 <header>
   <div class="brand">
-    <div class="cross">+</div>
+    <img src="https://shieldpapua.id/assets/images/resources/logo.png" alt="SHIELD PAPUA" style="height:34px;width:auto" onerror="this.style.display='none'">
     <div>
-      <h1>Peta Kasus Cepat</h1>
-      <small>Tempel data &rarr; langsung jadi peta. Data tidak diunggah ke mana pun.</small>
+      <h1>RapidMap</h1>
     </div>
   </div>
   <button id="toggleAside" class="ghost" type="button">Panel &#9662;</button>
@@ -222,7 +222,7 @@ function toNumber(v){
   return parseFloat(s);
 }
 
-var PALETTE = ['#0E7B5B','#C0392B','#2C63B8','#B4690E','#7D3CB5','#0E7B8F','#95A11C','#B83280','#5D6D3B','#8C5B2F'];
+var PALETTE = ['#5c3934','#C0392B','#2C63B8','#B4690E','#7D3CB5','#0E7B8F','#95A11C','#B83280','#5D6D3B','#8C5B2F'];
 
 // ---------- Deteksi kolom ----------
 var LAT_HINTS = ['lat','latitude','lintang','y','koordinat_y','ycoord'];
@@ -383,7 +383,7 @@ var BOUNDARY_FILE = 'kabupaten-id.json'; // file di repo yang sama
 function addBoundary(gj){
   if (geoLayer) map.removeLayer(geoLayer);
   geoLayer = L.geoJSON(gj, {
-    style: { color: '#122A26', weight: 1.5, fillOpacity: 0.03, dashArray: '4 3' },
+    style: { color: '#5c3934', weight: 1.5, fillOpacity: 0.03, dashArray: '4 3' },
     onEachFeature: function(f, layer){
       var p = f.properties || {};
       var name = p.NAMOBJ || p.WADMKK || p.nama || p.name || p.NAME || p.WADMKD || p.desa || null;
