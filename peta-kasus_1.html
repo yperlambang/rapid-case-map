@@ -172,6 +172,11 @@
       <label class="toggle"><input type="checkbox" id="satChk"> Tampilan citra satelit</label>
     </div>
 
+    <div class="step" id="filterWrap" style="display:none">
+      <div class="step-head"><span class="tag">Filter</span><h2>Tampilkan kategori</h2></div>
+      <select id="showCat"><option value="">Semua kategori</option></select>
+    </div>
+
     <div class="step" id="legendWrap" style="display:none">
       <div class="step-head"><span class="tag">Legenda</span><h2>Jumlah kasus</h2></div>
       <div id="legend"></div>
@@ -204,6 +209,7 @@ var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Worl
 var pointLayer = null;   // layer titik / cluster aktif
 var geoLayer = null;     // layer batas wilayah
 var parsed = null;       // hasil parse terakhir
+var filterCat = '';      // kategori yang sedang ditampilkan ('' = semua)
 
 // ---------- Elemen ----------
 var $ = function(id){ return document.getElementById(id); };
@@ -259,6 +265,7 @@ function parseText(text){
     return;
   }
   parsed = res;
+  filterCat = '';
   var f = res.meta.fields;
   fillSelect(latSel, f, guessCol(f, LAT_HINTS), false);
   fillSelect(lonSel, f, guessCol(f, LON_HINTS), false);
@@ -280,14 +287,31 @@ function plot(){
   var latC = latSel.value, lonC = lonSel.value, catC = catSel.value;
   if (!latC || !lonC){ showMsg('err', 'Pilih kolom lintang dan bujur di Langkah 2.'); return; }
 
-  var ok = 0, bad = 0, counts = {}, colors = {}, nextColor = 0;
+  var ok = 0, bad = 0, counts = {}, colors = {};
+
+  // kumpulkan semua kategori (untuk dropdown filter) + warna konsisten per kategori
+  var allCats = [];
+  if (catC){
+    var seenCat = {};
+    parsed.data.forEach(function(row){
+      var c = String(row[catC] || '(kosong)').trim();
+      if (!(c in seenCat)){ seenCat[c] = 1; allCats.push(c); }
+    });
+    allCats.forEach(function(c, idx){ colors[c] = PALETTE[idx % PALETTE.length]; });
+  } else {
+    colors['Kasus'] = PALETTE[0];
+    filterCat = '';
+  }
+  populateFilter(allCats);
+
   var markers = [];
 
   parsed.data.forEach(function(row){
     var lat = toNumber(row[latC]), lon = toNumber(row[lonC]);
     if (isNaN(lat) || isNaN(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180){ bad++; return; }
     var cat = catC ? String(row[catC] || '(kosong)').trim() : 'Kasus';
-    if (!(cat in colors)){ colors[cat] = PALETTE[nextColor % PALETTE.length]; nextColor++; counts[cat] = 0; }
+    if (filterCat && cat !== filterCat) return;   // filter: tampilkan satu kategori saja
+    if (!(cat in counts)) counts[cat] = 0;
     counts[cat]++;
 
     var html = '<table>';
@@ -322,6 +346,20 @@ function plot(){
   showMsg(bad ? 'warn' : 'ok', note);
 }
 
+function populateFilter(cats){
+  var wrap = $('filterWrap'), sel = $('showCat');
+  if (!cats || !cats.length){ wrap.style.display = 'none'; sel.innerHTML = '<option value="">Semua kategori</option>'; return; }
+  wrap.style.display = 'flex';
+  var cur = filterCat;
+  sel.innerHTML = '<option value="">Semua kategori</option>';
+  cats.forEach(function(c){
+    var o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    if (c === cur) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
 function renderLegend(counts, colors){
   var wrap = $('legendWrap'), lg = $('legend'), stats = $('stats');
   lg.innerHTML = ''; stats.innerHTML = '';
@@ -338,6 +376,8 @@ function renderLegend(counts, colors){
 
 // ---------- Events ----------
 $('plotBtn').addEventListener('click', plot);
+$('showCat').addEventListener('change', function(e){ filterCat = e.target.value; plot(); });
+catSel.addEventListener('change', function(){ filterCat = ''; if (pointLayer) plot(); });
 
 dataInput.addEventListener('input', function(){
   if (dataInput.value.trim().length > 10) parseText(dataInput.value);
@@ -378,7 +418,12 @@ $('toggleAside').addEventListener('click', function(){
 });
 
 // ---------- Muat batas wilayah otomatis dari repo ----------
-var BOUNDARY_FILE = 'kabupaten-id.json'; // file di repo yang sama
+// URL absolut agar batas wilayah tetap muncul di mana pun HTML dipasang (website/blog)
+var BOUNDARY_URLS = [
+  'https://cdn.jsdelivr.net/gh/yperlambang/rapid-case-map/kabupaten-id.json',
+  'https://raw.githubusercontent.com/yperlambang/rapid-case-map/main/kabupaten-id.json',
+  'https://raw.githubusercontent.com/yperlambang/rapid-case-map/master/kabupaten-id.json'
+];
 
 function addBoundary(gj){
   if (geoLayer) map.removeLayer(geoLayer);
@@ -393,10 +438,14 @@ function addBoundary(gj){
   if (!pointLayer) map.fitBounds(geoLayer.getBounds().pad(0.05));
 }
 
-fetch(BOUNDARY_FILE)
-  .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
-  .then(addBoundary)
-  .catch(function(){ /* file tidak ditemukan (misal dibuka lokal) — lewati tanpa error */ });
+(function loadBoundary(i){
+  i = i || 0;
+  if (i >= BOUNDARY_URLS.length) return; // semua sumber gagal — lewati tanpa error
+  fetch(BOUNDARY_URLS[i])
+    .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(addBoundary)
+    .catch(function(){ loadBoundary(i + 1); });
+})();
 </script>
 </body>
 </html>
