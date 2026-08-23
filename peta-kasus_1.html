@@ -173,6 +173,7 @@
       <div class="step-head"><span class="tag">Langkah 3</span><h2>Buat peta</h2></div>
       <button class="primary" id="plotBtn" type="button">Tampilkan di peta</button>
       <div id="msg" role="status"></div>
+      <label class="toggle"><input type="checkbox" id="pointChk" checked> Tampilkan titik</label>
       <label class="toggle"><input type="checkbox" id="clusterChk"> Kelompokkan titik yang berdekatan (cluster)</label>
       <label class="toggle"><input type="checkbox" id="satChk"> Tampilan citra satelit</label>
       <label class="toggle"><input type="checkbox" id="heatChk"> Tampilkan heatmap/kepadatan</label>
@@ -206,7 +207,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 // ---------- Peta dasar ----------
-var map = L.map('map').setView([-2.5, 118], 5); // Indonesia
+var map = L.map('map', { preferCanvas: true }).setView([-2.5, 118], 5); // Indonesia
 var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19, crossOrigin: true,
   attribution: '&copy; OpenStreetMap contributors'
@@ -232,6 +233,7 @@ var geoLayer = null;     // layer batas wilayah
 var parsed = null;       // hasil parse terakhir
 var filterCat = '';      // kategori yang sedang ditampilkan ('' = semua)
 var heatLayer = null;    // layer heatmap/kepadatan
+var plotted = false;     // apakah peta sudah pernah dibuat
 
 // ---------- Elemen ----------
 var $ = function(id){ return document.getElementById(id); };
@@ -328,6 +330,7 @@ function plot(){
 
   var markers = [];
   var heatPoints = [];
+  var bounds = L.latLngBounds([]);
 
   parsed.data.forEach(function(row){
     var lat = toNumber(row[latC]), lon = toNumber(row[lonC]);
@@ -349,6 +352,7 @@ function plot(){
     }).bindPopup(html);
     markers.push(m);
     heatPoints.push([lat, lon]);
+    bounds.extend([lat, lon]);
     ok++;
   });
 
@@ -356,20 +360,24 @@ function plot(){
   if (heatLayer){ map.removeLayer(heatLayer); heatLayer = null; }
   if (!ok){ showMsg('err', 'Tidak ada koordinat yang valid. Periksa kolom lat/lon (contoh nilai valid: -4.5321 dan 136.8812).'); renderLegend({}, {}); return; }
 
-  if ($('clusterChk').checked){
-    pointLayer = L.markerClusterGroup();
-    markers.forEach(function(m){ pointLayer.addLayer(m); });
-  } else {
-    pointLayer = L.featureGroup(markers);
+  if ($('pointChk').checked){
+    if ($('clusterChk').checked){
+      pointLayer = L.markerClusterGroup();
+      markers.forEach(function(m){ pointLayer.addLayer(m); });
+    } else {
+      pointLayer = L.featureGroup(markers);
+    }
+    pointLayer.addTo(map);
   }
-  pointLayer.addTo(map);
-  map.fitBounds(pointLayer.getBounds().pad(0.15));
 
   if ($('heatChk').checked && heatPoints.length){
     heatLayer = L.heatLayer(heatPoints, { radius: 25, blur: 15, minOpacity: 0.35 });
     heatLayer.addTo(map);
   }
 
+  if (bounds.isValid()) map.fitBounds(bounds.pad(0.15));
+
+  plotted = true;
   renderLegend(counts, colors);
   var note = 'Berhasil memetakan <b>' + ok + ' kasus</b>.';
   if (bad) note += ' <span style="color:var(--amber)">' + bad + ' baris dilewati karena koordinatnya tidak valid.</span>';
@@ -409,8 +417,9 @@ function renderLegend(counts, colors){
 // ---------- Events ----------
 $('plotBtn').addEventListener('click', plot);
 $('showCat').addEventListener('change', function(e){ filterCat = e.target.value; plot(); });
-catSel.addEventListener('change', function(){ filterCat = ''; if (pointLayer) plot(); });
-$('heatChk').addEventListener('change', function(){ if (pointLayer) plot(); });
+catSel.addEventListener('change', function(){ filterCat = ''; if (plotted) plot(); });
+$('heatChk').addEventListener('change', function(){ if (plotted) plot(); });
+$('pointChk').addEventListener('change', function(){ if (plotted) plot(); });
 $('exportBtn').addEventListener('click', exportPNG);
 
 dataInput.addEventListener('input', function(){
@@ -461,7 +470,7 @@ $('satChk').addEventListener('change', function(e){
   else { map.removeLayer(sat); osm.addTo(map); }
 });
 
-$('clusterChk').addEventListener('change', function(){ if (pointLayer) plot(); });
+$('clusterChk').addEventListener('change', function(){ if (plotted) plot(); });
 
 $('toggleAside').addEventListener('click', function(){
   $('panel').classList.toggle('hidden');
