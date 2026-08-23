@@ -118,6 +118,11 @@
     #toggleAside{display:inline-block;margin-left:auto}
     #stats{margin-left:0;width:100%}
   }
+  .map-legend{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;box-shadow:0 1px 8px rgba(0,0,0,.18);font-size:12px;max-height:42vh;overflow:auto;display:none}
+  .map-legend.show{display:block}
+  .map-legend .ml-title{font-weight:800;color:#5c3934;margin-bottom:6px;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+  .map-legend .lg-item{display:flex;align-items:center;gap:8px;font-size:12px;margin:2px 0}
+  .map-legend .lg-item b{margin-left:12px;font-weight:800}
 </style>
 </head>
 <body>
@@ -140,8 +145,8 @@
       <div class="step-head"><span class="tag">Langkah 1</span><h2>Masukkan data kasus</h2></div>
       <textarea id="dataInput" placeholder="Tempel data dari Excel/CSV di sini.&#10;Baris pertama = nama kolom.&#10;Wajib ada kolom koordinat (lat &amp; lon / lintang &amp; bujur).&#10;&#10;Contoh:&#10;nama,desa,penyakit,lat,lon&#10;Kasus 1,Wonosari,DBD,-4.5321,136.8812"></textarea>
       <div class="row">
-        <label class="filebtn" for="fileInput">Atau pilih file CSV&hellip;</label>
-        <input type="file" id="fileInput" accept=".csv,.txt,.tsv">
+        <label class="filebtn" for="fileInput">Atau pilih file CSV/Excel&hellip;</label>
+        <input type="file" id="fileInput" accept=".csv,.txt,.tsv,.xlsx,.xls">
         <button class="ghost" id="sampleBtn" type="button">Isi contoh data</button>
       </div>
     </div>
@@ -170,6 +175,8 @@
       <div id="msg" role="status"></div>
       <label class="toggle"><input type="checkbox" id="clusterChk"> Kelompokkan titik yang berdekatan (cluster)</label>
       <label class="toggle"><input type="checkbox" id="satChk"> Tampilan citra satelit</label>
+      <label class="toggle"><input type="checkbox" id="heatChk"> Tampilkan heatmap/kepadatan</label>
+      <button class="ghost" id="exportBtn" type="button" style="margin-top:6px">Ekspor peta ke PNG</button>
     </div>
 
     <div class="step" id="filterWrap" style="display:none">
@@ -194,22 +201,37 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 // ---------- Peta dasar ----------
 var map = L.map('map').setView([-2.5, 118], 5); // Indonesia
 var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
+  maxZoom: 19, crossOrigin: true,
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-  maxZoom: 19,
+  maxZoom: 19, crossOrigin: true,
   attribution: 'Citra: Esri World Imagery'
 });
+
+// ---------- Legenda di peta ----------
+var legendControl = L.control({ position: 'bottomright' });
+legendControl.onAdd = function(){
+  var d = L.DomUtil.create('div', 'map-legend');
+  d.id = 'mapLegend';
+  L.DomEvent.disableScrollPropagation(d);
+  L.DomEvent.disableClickPropagation(d);
+  return d;
+};
+legendControl.addTo(map);
 
 var pointLayer = null;   // layer titik / cluster aktif
 var geoLayer = null;     // layer batas wilayah
 var parsed = null;       // hasil parse terakhir
 var filterCat = '';      // kategori yang sedang ditampilkan ('' = semua)
+var heatLayer = null;    // layer heatmap/kepadatan
 
 // ---------- Elemen ----------
 var $ = function(id){ return document.getElementById(id); };
@@ -305,6 +327,7 @@ function plot(){
   populateFilter(allCats);
 
   var markers = [];
+  var heatPoints = [];
 
   parsed.data.forEach(function(row){
     var lat = toNumber(row[latC]), lon = toNumber(row[lonC]);
@@ -325,10 +348,12 @@ function plot(){
       fillColor: colors[cat], fillOpacity: 0.9
     }).bindPopup(html);
     markers.push(m);
+    heatPoints.push([lat, lon]);
     ok++;
   });
 
   if (pointLayer){ map.removeLayer(pointLayer); pointLayer = null; }
+  if (heatLayer){ map.removeLayer(heatLayer); heatLayer = null; }
   if (!ok){ showMsg('err', 'Tidak ada koordinat yang valid. Periksa kolom lat/lon (contoh nilai valid: -4.5321 dan 136.8812).'); renderLegend({}, {}); return; }
 
   if ($('clusterChk').checked){
@@ -339,6 +364,11 @@ function plot(){
   }
   pointLayer.addTo(map);
   map.fitBounds(pointLayer.getBounds().pad(0.15));
+
+  if ($('heatChk').checked && heatPoints.length){
+    heatLayer = L.heatLayer(heatPoints, { radius: 25, blur: 15, minOpacity: 0.35 });
+    heatLayer.addTo(map);
+  }
 
   renderLegend(counts, colors);
   var note = 'Berhasil memetakan <b>' + ok + ' kasus</b>.';
@@ -361,23 +391,27 @@ function populateFilter(cats){
 }
 
 function renderLegend(counts, colors){
-  var wrap = $('legendWrap'), lg = $('legend'), stats = $('stats');
-  lg.innerHTML = ''; stats.innerHTML = '';
+  var ml = $('mapLegend'), stats = $('stats');
+  stats.innerHTML = '';
+  if ($('legendWrap')) $('legendWrap').style.display = 'none';
   var cats = Object.keys(counts);
-  wrap.style.display = cats.length ? 'flex' : 'none';
-  var total = 0;
+  if (!cats.length){ if (ml){ ml.className = 'map-legend'; ml.innerHTML = ''; } return; }
+  var total = 0, rows = '';
   cats.sort(function(a,b){ return counts[b] - counts[a]; }).forEach(function(c){
     total += counts[c];
-    lg.innerHTML += '<div class="lg-item"><span class="lg-dot" style="background:' + colors[c] + '"></span>' + c + '<b>' + counts[c] + '</b></div>';
+    rows += '<div class="lg-item"><span class="lg-dot" style="background:' + colors[c] + '"></span>' + c + '<b>' + counts[c] + '</b></div>';
     stats.innerHTML += '<span class="chip">' + c + ' <b>' + counts[c] + '</b></span>';
   });
   if (cats.length > 1) stats.innerHTML = '<span class="chip">Total <b>' + total + '</b></span>' + stats.innerHTML;
+  if (ml){ ml.className = 'map-legend show'; ml.innerHTML = '<div class="ml-title">Jumlah kasus</div>' + rows; }
 }
 
 // ---------- Events ----------
 $('plotBtn').addEventListener('click', plot);
 $('showCat').addEventListener('change', function(e){ filterCat = e.target.value; plot(); });
 catSel.addEventListener('change', function(){ filterCat = ''; if (pointLayer) plot(); });
+$('heatChk').addEventListener('change', function(){ if (pointLayer) plot(); });
+$('exportBtn').addEventListener('click', exportPNG);
 
 dataInput.addEventListener('input', function(){
   if (dataInput.value.trim().length > 10) parseText(dataInput.value);
@@ -386,9 +420,25 @@ dataInput.addEventListener('input', function(){
 $('fileInput').addEventListener('change', function(e){
   var file = e.target.files[0];
   if (!file) return;
-  var r = new FileReader();
-  r.onload = function(){ dataInput.value = r.result; parseText(r.result); };
-  r.readAsText(file);
+  var name = file.name.toLowerCase();
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')){
+    var rx = new FileReader();
+    rx.onload = function(){
+      try {
+        var wb = XLSX.read(new Uint8Array(rx.result), { type: 'array' });
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var csv = XLSX.utils.sheet_to_csv(ws);
+        dataInput.value = csv; parseText(csv);
+      } catch (err) {
+        showMsg('err', 'Gagal membaca file Excel. Pastikan berupa .xlsx/.xls yang valid.');
+      }
+    };
+    rx.readAsArrayBuffer(file);
+  } else {
+    var r = new FileReader();
+    r.onload = function(){ dataInput.value = r.result; parseText(r.result); };
+    r.readAsText(file);
+  }
 });
 
 $('sampleBtn').addEventListener('click', function(){
@@ -418,6 +468,20 @@ $('toggleAside').addEventListener('click', function(){
 });
 
 // ---------- Muat batas wilayah otomatis dari repo ----------
+function exportPNG(){
+  if (typeof html2canvas === 'undefined'){ showMsg('err', 'Pustaka ekspor belum termuat. Muat ulang halaman lalu coba lagi.'); return; }
+  showMsg('warn', 'Menyiapkan gambar peta&hellip;');
+  html2canvas(document.getElementById('map'), { useCORS: true, backgroundColor: '#ffffff', logging: false }).then(function(canvas){
+    var a = document.createElement('a');
+    a.download = 'rapidmap.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+    showMsg('ok', 'Gambar peta diunduh sebagai <b>rapidmap.png</b>.');
+  }).catch(function(){
+    showMsg('err', 'Gagal membuat gambar. Coba pakai basemap OSM (bukan satelit) lalu ulangi.');
+  });
+}
+
 // URL absolut agar batas wilayah tetap muncul di mana pun HTML dipasang (website/blog)
 var BOUNDARY_URLS = [
   'https://cdn.jsdelivr.net/gh/yperlambang/rapid-case-map/kabupaten-id.json',
