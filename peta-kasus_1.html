@@ -411,7 +411,8 @@ function renderLegend(counts, colors){
     stats.innerHTML += '<span class="chip">' + c + ' <b>' + counts[c] + '</b></span>';
   });
   if (cats.length > 1) stats.innerHTML = '<span class="chip">Total <b>' + total + '</b></span>' + stats.innerHTML;
-  if (ml){ ml.className = 'map-legend show'; ml.innerHTML = '<div class="ml-title">Jumlah kasus</div>' + rows; }
+  var lgTitle = catSel.value ? catSel.value : 'Kasus';
+  if (ml){ ml.className = 'map-legend show'; ml.innerHTML = '<div class="ml-title">' + lgTitle + '</div>' + rows; }
 }
 
 // ---------- Events ----------
