@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RapidMap — 2 Layer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#3d2b28;--ink-soft:#a28e8b;--surface:#FFFFFF;--bg:#f7f2ec;--line:#e8ded4;--green:#5c3934;--green-dark:#42231f;--amber:#8a5a2b;--header:#d4b495;--radius:10px}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);background:var(--bg);display:flex;flex-direction:column}
+  header{background:var(--header);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand h1{font-size:15px;font-weight:800;letter-spacing:-.01em;color:#5c3934}
+  .brand small{display:block;font-size:11px;font-weight:500;color:#7a4f47}
+  #stats{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+  .chip{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center;gap:6px}
+  .chip .gl{width:10px;height:10px}
+  .chip b{color:var(--ink);font-weight:800}
+  main{flex:1;display:flex;min-height:0}
+  aside{width:330px;min-width:330px;background:var(--surface);border-right:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+  #map{flex:1;min-height:300px;z-index:1}
+  .tabs{display:flex;gap:6px}
+  .tab{flex:1;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:8px;padding:9px 8px;display:flex;align-items:center;justify-content:center;gap:7px}
+  .tab.on{background:var(--green);border-color:var(--green);color:#fff}
+  .tab .gl{width:12px;height:12px;border:2px solid currentColor}
+  .step{display:flex;flex-direction:column;gap:8px}
+  .step-head{display:flex;align-items:baseline;gap:8px}
+  .tag{font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.08em}
+  .step h2,.step-head h2{font-size:13px;font-weight:700;margin:0}
+  .step h2{color:var(--green);text-transform:uppercase;letter-spacing:.04em;font-size:11px}
+  textarea{width:100%;height:110px;resize:vertical;border:1px solid var(--line);border-radius:var(--radius);padding:10px;font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--ink);background:#FAFCFB}
+  .txt{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;color:var(--ink)}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  .btn{font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;border-radius:var(--radius);padding:9px 12px;border:1px solid var(--line);background:#fff;color:var(--ink);width:100%}
+  .btn.primary{background:var(--green);border-color:var(--green);color:#fff}
+  .btn.primary:hover{background:var(--green-dark)}
+  .btn.ghost{background:transparent;color:var(--ink-soft)}
+  .btn.ghost:hover{color:var(--ink)}
+  .btn.sm{width:auto;padding:7px 10px;font-size:12px}
+  input[type=file]{display:none}
+  .filebtn{display:block;text-align:center;font-size:12.5px;font-weight:700;cursor:pointer;border:1px dashed var(--line);border-radius:var(--radius);padding:9px 12px;color:var(--ink-soft)}
+  .filebtn:hover{border-color:var(--green);color:var(--green)}
+  select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius);font-family:inherit;font-size:13px;color:var(--ink);background:var(--surface);-webkit-appearance:auto!important;appearance:auto!important;pointer-events:auto!important;opacity:1!important}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:11.5px;font-weight:600;color:var(--ink-soft)}
+  .msg{font-size:12px;line-height:1.5;border-radius:var(--radius);padding:8px 10px;display:none}
+  .msg.ok{display:block;background:#e6efe3;color:#3d6b4f}
+  .msg.warn{display:block;background:#f6ead6;color:#8a5a2b}
+  .msg.err{display:block;background:#f7e4e0;color:#9C2B2B}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer}
+  .toggle input{accent-color:var(--green);width:15px;height:15px}
+  footer.note{font-size:11px;color:var(--ink-soft);line-height:1.5;border-top:1px solid var(--line);padding-top:12px;margin-top:auto}
+  .leaflet-popup-content{font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px}
+  .leaflet-popup-content table td{padding:2px 6px 2px 0;vertical-align:top}
+  .leaflet-popup-content table td:first-child{font-weight:700;color:var(--ink-soft)}
+  .map-legend{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;box-shadow:0 1px 8px rgba(0,0,0,.18);font-size:12px;max-height:46vh;overflow:auto;display:none}
+  .map-legend.show{display:block}
+  .map-legend .ml-title{font-weight:800;color:#5c3934;margin:4px 0 4px;font-size:11px;display:flex;align-items:center;gap:6px}
+  .map-legend .ml-title:first-child{margin-top:0}
+  .map-legend .lg-item{display:flex;align-items:center;gap:8px;font-size:12px;margin:2px 0 2px 2px}
+  .map-legend .lg-item b{margin-left:12px;font-weight:800}
+  .gl-circle{border-radius:50%}
+  .gl-square{border-radius:1px}
+  #toggleAside{display:none}
+  @media (max-width:760px){
+    main{flex-direction:column}
+    aside{width:100%;min-width:0;max-height:55vh;border-right:none;border-bottom:1px solid var(--line)}
+    aside.hidden{display:none}
+    #toggleAside{display:inline-block;margin-left:auto}
+    #stats{margin-left:0;width:100%}
+    #map{min-height:400px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <img src="https://shieldpapua.id/assets/images/resources/logo.png" alt="SHIELD PAPUA" style="height:34px;width:auto" onerror="this.style.display='none'">
+    <div>
+      <h1>RapidMap &mdash; 2 Layer</h1>
+      <small>Dua dataset, dua layer peta. Data diproses di perangkat Anda.</small>
+    </div>
+  </div>
+  <button id="toggleAside" class="btn sm ghost" type="button">Panel &#9662;</button>
+  <div id="stats"></div>
+</header>
+
+<main>
+  <aside id="panel">
+    <div class="tabs" id="tabs"></div>
+    <div id="panels"></div>
+    <div class="step">
+      <h2>Ekspor</h2>
+      <button class="btn ghost" id="exportBtn" type="button">Ekspor peta ke PNG</button>
+    </div>
+    <footer class="note">
+      Semua pemrosesan terjadi di perangkat Anda (browser). Data tidak dikirim atau disimpan di server.
+      Gunakan tombol layer (kanan atas peta) untuk menyalakan/mematikan tiap dataset.
+    </footer>
+  </aside>
+  <div id="map"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+var $ = function(id){ return document.getElementById(id); };
+
+// ---------- Peta ----------
+var map = L.map('map', { preferCanvas: true }).setView([-4.53, 136.88], 12);
+var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, crossOrigin: true, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+var MAPBOX_TOKEN = 'pk.eyJ1IjoicGVybGFtYmFuZyIsImEiOiJjbXQ2ajZrb3oxbWhyMnhxdGI4MnN0cmNyIn0.Jo1JAdhdFzonL1tH1KTVHA';
+var mapboxSat = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=' + MAPBOX_TOKEN, { maxZoom: 22, tileSize: 512, zoomOffset: -1, crossOrigin: true, attribution: '&copy; Mapbox &copy; Maxar' });
+var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, crossOrigin: true, attribution: 'Citra: Esri World Imagery' });
+var s2 = L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg', { maxNativeZoom: 14, maxZoom: 19, crossOrigin: true, attribution: 'Sentinel-2 cloudless 2020 &copy; EOX' });
+var baseLayers = { 'Peta (OSM)': osm, 'Satelit (Mapbox)': mapboxSat, 'Satelit (Esri)': sat, 'Satelit (Sentinel-2)': s2 };
+
+var PALETTE = ['#5c3934','#C0392B','#2C63B8','#B4690E','#7D3CB5','#0E7B8F','#95A11C','#B83280','#5D6D3B','#0E7B5B'];
+
+// ---------- Dataset ----------
+var DS = [
+  { name:'Layer 1', shape:'circle', parsed:null, filterCat:'', group:L.layerGroup().addTo(map), plotted:false },
+  { name:'Layer 2', shape:'square', parsed:null, filterCat:'', group:L.layerGroup().addTo(map), plotted:false }
+];
+var active = 0;
+var layerControl = null;
+
+function rebuildOverlays(){
+  if (layerControl) map.removeControl(layerControl);
+  var ov = {}; DS.forEach(function(d){ ov['<span style="display:inline-block">'+d.name+'</span>'] = d.group; });
+  layerControl = L.control.layers(baseLayers, ov, { position:'topright', collapsed:true }).addTo(map);
+}
+
+// ---------- Elemen per dataset ----------
+function E(k){
+  return {
+    panel:$('dspanel-'+k), name:$('dsname-'+k), data:$('dataInput-'+k), file:$('fileInput-'+k), sample:$('sampleBtn-'+k),
+    lat:$('latCol-'+k), lon:$('lonCol-'+k), cat:$('catCol-'+k), plot:$('plotBtn-'+k), msg:$('msg-'+k),
+    point:$('pointChk-'+k), cluster:$('clusterChk-'+k), heat:$('heatChk-'+k), filterWrap:$('filterWrap-'+k), show:$('showCat-'+k)
+  };
+}
+
+// ---------- Build panel UI ----------
+function panelHTML(k){
+  var hide = k===0 ? '' : ' style="display:none"';
+  return '<div class="ds-panel" id="dspanel-'+k+'"'+hide+'>'
+    + '<div class="step"><h2>Nama layer</h2><input type="text" class="txt" id="dsname-'+k+'" value="'+DS[k].name+'" maxlength="40"></div>'
+    + '<div class="step"><div class="step-head"><span class="tag">Langkah 1</span><h2>Masukkan data</h2></div>'
+    + '<textarea id="dataInput-'+k+'" placeholder="Tempel data dari Excel/CSV.&#10;Baris pertama = nama kolom.&#10;Wajib ada kolom koordinat (lat &amp; lon)."></textarea>'
+    + '<div class="row"><label class="filebtn" for="fileInput-'+k+'">Atau pilih file CSV/Excel&hellip;</label>'
+    + '<input type="file" id="fileInput-'+k+'" accept=".csv,.txt,.tsv,.xlsx,.xls">'
+    + '<button class="btn ghost" id="sampleBtn-'+k+'" type="button" style="flex:none;width:auto">Contoh</button></div></div>'
+    + '<div class="step"><div class="step-head"><span class="tag">Langkah 2</span><h2>Pilih kolom</h2></div>'
+    + '<div class="row"><div class="field"><label>Lintang (lat)</label><select id="latCol-'+k+'"></select></div>'
+    + '<div class="field"><label>Bujur (lon)</label><select id="lonCol-'+k+'"></select></div></div>'
+    + '<div class="field"><label>Warnai berdasarkan (opsional)</label><select id="catCol-'+k+'"><option value="">&mdash; satu warna &mdash;</option></select></div></div>'
+    + '<div class="step"><div class="step-head"><span class="tag">Langkah 3</span><h2>Tampilkan</h2></div>'
+    + '<button class="btn primary" id="plotBtn-'+k+'" type="button">Tampilkan di peta</button>'
+    + '<div class="msg" id="msg-'+k+'"></div>'
+    + '<label class="toggle"><input type="checkbox" id="pointChk-'+k+'" checked> Tampilkan titik</label>'
+    + '<label class="toggle"><input type="checkbox" id="clusterChk-'+k+'"> Kelompokkan titik (cluster)</label>'
+    + '<label class="toggle"><input type="checkbox" id="heatChk-'+k+'"> Heatmap/kepadatan</label></div>'
+    + '<div class="step" id="filterWrap-'+k+'" style="display:none"><div class="step-head"><span class="tag">Filter</span><h2>Tampilkan kategori</h2></div>'
+    + '<select id="showCat-'+k+'"><option value="">Semua kategori</option></select></div>'
+    + '</div>';
+}
+
+function shapeGlyph(shape, color){
+  var cls = shape==='circle' ? 'gl-circle' : 'gl-square';
+  return '<span class="gl '+cls+'" style="display:inline-block;width:11px;height:11px;background:'+(color||'#5c3934')+';border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)"></span>';
+}
+
+function buildTabs(){
+  var t = $('tabs'); t.innerHTML = '';
+  DS.forEach(function(d, k){
+    var b = document.createElement('button');
+    b.className = 'tab' + (k===active ? ' on' : '');
+    b.id = 'tab-'+k;
+    b.innerHTML = '<span class="gl '+(d.shape==='circle'?'gl-circle':'gl-square')+'"></span>' + d.name;
+    b.onclick = function(){ active = k; DS.forEach(function(_,i){ E(i).panel.style.display = i===k?'':'none'; }); buildTabs(); };
+    t.appendChild(b);
+  });
+}
+
+// ---------- Util ----------
+function showMsg(k, kind, text){ var m = E(k).msg; m.className = 'msg ' + kind; m.innerHTML = text; }
+function toNumber(v){ if (v==null) return NaN; var s=String(v).trim().replace(/[°\s]/g,''); if (/^-?\d+,\d+$/.test(s)) s=s.replace(',','.'); return parseFloat(s); }
+var LAT_HINTS=['lat','latitude','lintang','y'], LON_HINTS=['lon','lng','long','longitude','bujur','x'];
+function guessCol(fields, hints){
+  var low = fields.map(function(f){ return f.toLowerCase().trim(); });
+  for (var i=0;i<hints.length;i++){ var idx=low.indexOf(hints[i]); if (idx!==-1) return fields[idx]; }
+  for (var j=0;j<low.length;j++) for (var m=0;m<hints.length;m++) if (low[j].indexOf(hints[m])!==-1) return fields[j];
+  return null;
+}
+function fixNativeSelect(sel){ try{
+  var rx=/nice-select|select2|chosen|selectric|bootstrap-select|sumoselect/i, sib=sel.nextElementSibling;
+  while(sib){ var nx=sib.nextElementSibling; if(rx.test(sib.className||'')) sib.parentNode.removeChild(sib); sib=nx; }
+  var par=sel.parentElement; if(par&&rx.test(par.className||'')&&par.parentElement){ par.parentElement.insertBefore(sel,par); par.parentElement.removeChild(par); }
+  sel.classList.remove('nice-select','select2-hidden-accessible','selectric'); sel.style.display=''; sel.style.opacity='1'; sel.style.pointerEvents='auto';
+}catch(e){} }
+function fillSelect(sel, fields, chosen, allowEmpty){
+  sel.innerHTML = allowEmpty ? '<option value="">&mdash; satu warna &mdash;</option>' : '';
+  fields.forEach(function(f){ var o=document.createElement('option'); o.value=f; o.textContent=f; if(f===chosen)o.selected=true; sel.appendChild(o); });
+  fixNativeSelect(sel);
+}
+
+function parseText(k, text){
+  var res = Papa.parse(text.trim(), { header:true, skipEmptyLines:true });
+  if (!res.data.length || !res.meta.fields || res.meta.fields.length<2){ showMsg(k,'err','Data tidak terbaca. Pastikan baris pertama berisi nama kolom.'); return; }
+  DS[k].parsed = res; DS[k].filterCat = '';
+  var f = res.meta.fields, e = E(k);
+  fillSelect(e.lat, f, guessCol(f, LAT_HINTS), false);
+  fillSelect(e.lon, f, guessCol(f, LON_HINTS), false);
+  var catGuess=null;
+  for (var i=0;i<f.length;i++){ var n=f[i].toLowerCase(); if (['penyakit','diagnosis','status','kategori','jenis','kasus','tipe','jentik','spesies'].some(function(h){return n.indexOf(h)!==-1;})){ catGuess=f[i]; break; } }
+  fillSelect(e.cat, f, catGuess, true);
+  showMsg(k,'ok','Terbaca <b>'+res.data.length+' baris</b>. Periksa Langkah 2, lalu klik <b>Tampilkan di peta</b>.');
+}
+
+// ---------- Plot ----------
+function makeMarker(lat, lon, color, shape, html){
+  var m;
+  if (shape==='circle'){ m = L.circleMarker([lat,lon], { radius:7, color:'#fff', weight:1.5, fillColor:color, fillOpacity:0.95 }); }
+  else { m = L.marker([lat,lon], { icon: L.divIcon({ className:'', iconSize:[14,14], iconAnchor:[7,7], html:'<div style="width:14px;height:14px;background:'+color+';border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)"></div>' }) }); }
+  m.bindPopup(html); return m;
+}
+function plot(k){
+  var d = DS[k], e = E(k);
+  if (!d.parsed){ showMsg(k,'err','Masukkan data dulu di Langkah 1.'); return; }
+  var latC=e.lat.value, lonC=e.lon.value, catC=e.cat.value;
+  if (!latC || !lonC){ showMsg(k,'err','Pilih kolom lintang & bujur di Langkah 2.'); return; }
+
+  var allCats=[], colors={}, counts={};
+  if (catC){ var seen={}; d.parsed.data.forEach(function(r){ var c=String(r[catC]||'(kosong)').trim(); if(!(c in seen)){seen[c]=1; allCats.push(c);} });
+    allCats.forEach(function(c,i){ colors[c]=PALETTE[i%PALETTE.length]; }); }
+  else { colors['(semua)']=PALETTE[k]; d.filterCat=''; }
+  populateFilter(k, allCats);
+
+  var ok=0, bad=0, markers=[], heatPts=[], bounds=L.latLngBounds([]);
+  d.parsed.data.forEach(function(r){
+    var lat=toNumber(r[latC]), lon=toNumber(r[lonC]);
+    if (isNaN(lat)||isNaN(lon)||Math.abs(lat)>90||Math.abs(lon)>180){ bad++; return; }
+    var cat = catC ? String(r[catC]||'(kosong)').trim() : '(semua)';
+    if (d.filterCat && cat!==d.filterCat) return;
+    if (!(cat in counts)) counts[cat]=0; counts[cat]++;
+    var html='<table><tr><td>layer</td><td>'+d.name+'</td></tr>';
+    Object.keys(r).forEach(function(key){ if(r[key]!==''&&r[key]!=null) html+='<tr><td>'+key+'</td><td>'+r[key]+'</td></tr>'; });
+    html+='</table>';
+    markers.push(makeMarker(lat, lon, colors[cat], d.shape, html));
+    heatPts.push([lat,lon]); bounds.extend([lat,lon]); ok++;
+  });
+
+  d.group.clearLayers();
+  if (!ok){ showMsg(k,'err','Tidak ada koordinat valid. Periksa kolom lat/lon.'); d.colors={}; d.counts={}; renderLegend(); renderStats(); return; }
+
+  if (e.cluster.checked){ var cg=L.markerClusterGroup(); markers.forEach(function(m){ cg.addLayer(m); }); d.group.addLayer(cg); }
+  else if (e.point.checked){ d.group.addLayer(L.featureGroup(markers)); }
+  if (e.heat.checked && heatPts.length){ d.group.addLayer(L.heatLayer(heatPts, { radius:25, blur:15, minOpacity:0.35 })); }
+
+  if (!map.hasLayer(d.group)) d.group.addTo(map);
+  if (bounds.isValid()) map.fitBounds(bounds.pad(0.15));
+  d.plotted=true; d.colors=colors; d.counts=counts;
+  renderLegend(); renderStats();
+  var note='Menampilkan <b>'+ok+'</b> titik pada layer <b>'+d.name+'</b>.';
+  if (bad) note+=' '+bad+' baris dilewati (koordinat tidak valid).';
+  showMsg(k, bad?'warn':'ok', note);
+}
+
+function populateFilter(k, cats){
+  var e=E(k);
+  if (!cats || !cats.length){ e.filterWrap.style.display='none'; e.show.innerHTML='<option value="">Semua kategori</option>'; return; }
+  e.filterWrap.style.display='flex';
+  var cur=DS[k].filterCat; e.show.innerHTML='<option value="">Semua kategori</option>';
+  cats.forEach(function(c){ var o=document.createElement('option'); o.value=c; o.textContent=c; if(c===cur)o.selected=true; e.show.appendChild(o); });
+  fixNativeSelect(e.show);
+}
+
+// ---------- Legenda & statistik ----------
+function renderLegend(){
+  var ml=$('mapLegend'); if(!ml) return;
+  var html='', any=false;
+  DS.forEach(function(d){
+    if (!d.plotted || !d.counts || !Object.keys(d.counts).length) return; any=true;
+    html+='<div class="ml-title">'+shapeGlyph(d.shape,'#999')+d.name+'</div>';
+    Object.keys(d.counts).sort(function(a,b){return d.counts[b]-d.counts[a];}).forEach(function(c){
+      html+='<div class="lg-item">'+shapeGlyph(d.shape,d.colors[c])+(c==='(semua)'?'Titik':c)+'<b>'+d.counts[c]+'</b></div>';
+    });
+  });
+  ml.className='map-legend'+(any?' show':''); ml.innerHTML=html;
+}
+function renderStats(){
+  var s=$('stats'); s.innerHTML='';
+  DS.forEach(function(d){
+    if (!d.plotted || !d.counts) return;
+    var tot=Object.keys(d.counts).reduce(function(a,c){return a+d.counts[c];},0);
+    s.innerHTML+='<span class="chip">'+shapeGlyph(d.shape,'#8a6a5f')+d.name+' <b>'+tot+'</b></span>';
+  });
+}
+
+// ---------- Ekspor PNG ----------
+function exportPNG(){
+  if (typeof html2canvas==='undefined'){ alert('Pustaka ekspor belum termuat.'); return; }
+  html2canvas($('map'), { useCORS:true, backgroundColor:'#ffffff', logging:false }).then(function(cv){
+    var a=document.createElement('a'); a.download='rapidmap.png'; a.href=cv.toDataURL('image/png'); a.click();
+  }).catch(function(){ alert('Gagal membuat gambar. Coba basemap OSM lalu ulangi.'); });
+}
+
+// ---------- Legenda control di peta ----------
+var legendControl=L.control({position:'bottomright'});
+legendControl.onAdd=function(){ var dv=L.DomUtil.create('div','map-legend'); dv.id='mapLegend'; L.DomEvent.disableScrollPropagation(dv); L.DomEvent.disableClickPropagation(dv); return dv; };
+legendControl.addTo(map);
+
+// ---------- Contoh data ----------
+var SAMPLE = [
+'nama,desa,penyakit,lat,lon\nKasus 01,Pasar Sentral,DBD,-4.5449,136.8830\nKasus 02,Kwamki,Malaria,-4.5228,136.8891\nKasus 03,Timika Jaya,Malaria,-4.5330,136.8740\nKasus 04,Wonosari Jaya,DBD,-4.5505,136.8952\nKasus 05,Pasar Sentral,Diare,-4.5440,136.8815',
+'id,lokasi,tipe,lat,lon\nBS01,Got belakang,Genangan,-4.5398,136.8805\nBS02,Bak mandi,Kontainer,-4.5467,136.8869\nBS03,Rawa,Badan air,-4.5291,136.8912\nBS04,Ban bekas,Kontainer,-4.5512,136.8921\nBS05,Kolam,Badan air,-4.5375,136.8762'
+];
+
+// ---------- Wiring ----------
+function wire(k){
+  var e=E(k);
+  e.name.addEventListener('input', function(){ DS[k].name=e.name.value.trim()||('Layer '+(k+1)); buildTabs(); rebuildOverlays(); renderLegend(); renderStats(); });
+  e.data.addEventListener('input', function(){ if (e.data.value.trim().length>10) parseText(k, e.data.value); });
+  e.sample.addEventListener('click', function(){ e.data.value=SAMPLE[k]; parseText(k, SAMPLE[k]); });
+  e.file.addEventListener('change', function(ev){
+    var f=ev.target.files[0]; if(!f) return; var nm=f.name.toLowerCase();
+    if (nm.endsWith('.xlsx')||nm.endsWith('.xls')){ var rx=new FileReader(); rx.onload=function(){ try{ var wb=XLSX.read(new Uint8Array(rx.result),{type:'array'}); var csv=XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]); e.data.value=csv; parseText(k,csv); }catch(er){ showMsg(k,'err','Gagal membaca Excel.'); } }; rx.readAsArrayBuffer(f); }
+    else { var r=new FileReader(); r.onload=function(){ e.data.value=r.result; parseText(k,r.result); }; r.readAsText(f); }
+    ev.target.value='';
+  });
+  e.plot.addEventListener('click', function(){ plot(k); });
+  e.point.addEventListener('change', function(){ if (DS[k].plotted) plot(k); });
+  e.cluster.addEventListener('change', function(){ if (DS[k].plotted) plot(k); });
+  e.heat.addEventListener('change', function(){ if (DS[k].plotted) plot(k); });
+  e.cat.addEventListener('change', function(){ DS[k].filterCat=''; if (DS[k].plotted) plot(k); });
+  e.show.addEventListener('change', function(){ DS[k].filterCat=e.show.value; plot(k); });
+}
+
+// ---------- Init ----------
+$('panels').innerHTML = panelHTML(0) + panelHTML(1);
+buildTabs();
+wire(0); wire(1);
+rebuildOverlays();
+$('exportBtn').onclick = exportPNG;
+$('toggleAside').onclick = function(){ $('panel').classList.toggle('hidden'); };
+</script>
+</body>
+</html>
