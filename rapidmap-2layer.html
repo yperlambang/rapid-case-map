@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RapidMap — 2 Layer</title>
+<title>RapidMap</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
@@ -56,6 +56,9 @@
   .msg.err{display:block;background:#f7e4e0;color:#9C2B2B}
   .toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer}
   .toggle input{accent-color:var(--green);width:15px;height:15px}
+  .color-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);padding:1px 0}
+  .color-row input[type=color]{width:30px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;flex:none}
+  #colorList-0,#colorList-1{display:flex;flex-direction:column;gap:4px}
   footer.note{font-size:11px;color:var(--ink-soft);line-height:1.5;border-top:1px solid var(--line);padding-top:12px;margin-top:auto}
   .leaflet-popup-content{font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px}
   .leaflet-popup-content table td{padding:2px 6px 2px 0;vertical-align:top}
@@ -85,8 +88,7 @@
   <div class="brand">
     <img src="https://shieldpapua.id/assets/images/resources/logo.png" alt="SHIELD PAPUA" style="height:34px;width:auto" onerror="this.style.display='none'">
     <div>
-      <h1>RapidMap &mdash; 2 Layer</h1>
-      <small>Dua dataset, dua layer peta. Data diproses di perangkat Anda.</small>
+      <h1>RapidMap</h1>
     </div>
   </div>
   <button id="toggleAside" class="btn sm ghost" type="button">Panel &#9662;</button>
@@ -174,6 +176,7 @@ function panelHTML(k){
     + '<label class="toggle"><input type="checkbox" id="heatChk-'+k+'"> Heatmap/kepadatan</label></div>'
     + '<div class="step" id="filterWrap-'+k+'" style="display:none"><div class="step-head"><span class="tag">Filter</span><h2>Tampilkan kategori</h2></div>'
     + '<select id="showCat-'+k+'"><option value="">Semua kategori</option></select></div>'
+    + '<div class="step" id="colorWrap-'+k+'" style="display:none"><h2>Warna</h2><div id="colorList-'+k+'"></div></div>'
     + '</div>';
 }
 
@@ -219,7 +222,7 @@ function fillSelect(sel, fields, chosen, allowEmpty){
 function parseText(k, text){
   var res = Papa.parse(text.trim(), { header:true, skipEmptyLines:true });
   if (!res.data.length || !res.meta.fields || res.meta.fields.length<2){ showMsg(k,'err','Data tidak terbaca. Pastikan baris pertama berisi nama kolom.'); return; }
-  DS[k].parsed = res; DS[k].filterCat = '';
+  DS[k].parsed = res; DS[k].filterCat = ''; DS[k].userColors = {};
   var f = res.meta.fields, e = E(k);
   fillSelect(e.lat, f, guessCol(f, LAT_HINTS), false);
   fillSelect(e.lon, f, guessCol(f, LON_HINTS), false);
@@ -236,16 +239,17 @@ function makeMarker(lat, lon, color, shape, html){
   else { m = L.marker([lat,lon], { icon: L.divIcon({ className:'', iconSize:[14,14], iconAnchor:[7,7], html:'<div style="width:14px;height:14px;background:'+color+';border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)"></div>' }) }); }
   m.bindPopup(html); return m;
 }
-function plot(k){
+function plot(k, keepView){
   var d = DS[k], e = E(k);
   if (!d.parsed){ showMsg(k,'err','Masukkan data dulu di Langkah 1.'); return; }
   var latC=e.lat.value, lonC=e.lon.value, catC=e.cat.value;
   if (!latC || !lonC){ showMsg(k,'err','Pilih kolom lintang & bujur di Langkah 2.'); return; }
 
+  var uc = d.userColors || {};
   var allCats=[], colors={}, counts={};
   if (catC){ var seen={}; d.parsed.data.forEach(function(r){ var c=String(r[catC]||'(kosong)').trim(); if(!(c in seen)){seen[c]=1; allCats.push(c);} });
-    allCats.forEach(function(c,i){ colors[c]=PALETTE[i%PALETTE.length]; }); }
-  else { colors['(semua)']=PALETTE[k]; d.filterCat=''; }
+    allCats.forEach(function(c,i){ colors[c]=uc[c]||PALETTE[i%PALETTE.length]; }); }
+  else { colors['(semua)']=uc['(semua)']||PALETTE[k]; d.filterCat=''; }
   populateFilter(k, allCats);
 
   var ok=0, bad=0, markers=[], heatPts=[], bounds=L.latLngBounds([]);
@@ -263,16 +267,16 @@ function plot(k){
   });
 
   d.group.clearLayers();
-  if (!ok){ showMsg(k,'err','Tidak ada koordinat valid. Periksa kolom lat/lon.'); d.colors={}; d.counts={}; renderLegend(); renderStats(); return; }
+  if (!ok){ showMsg(k,'err','Tidak ada koordinat valid. Periksa kolom lat/lon.'); d.colors={}; d.counts={}; renderLegend(); renderStats(); renderColors(k); return; }
 
   if (e.cluster.checked){ var cg=L.markerClusterGroup(); markers.forEach(function(m){ cg.addLayer(m); }); d.group.addLayer(cg); }
   else if (e.point.checked){ d.group.addLayer(L.featureGroup(markers)); }
   if (e.heat.checked && heatPts.length){ d.group.addLayer(L.heatLayer(heatPts, { radius:25, blur:15, minOpacity:0.35 })); }
 
   if (!map.hasLayer(d.group)) d.group.addTo(map);
-  if (bounds.isValid()) map.fitBounds(bounds.pad(0.15));
+  if (!keepView && bounds.isValid()) map.fitBounds(bounds.pad(0.15));
   d.plotted=true; d.colors=colors; d.counts=counts;
-  renderLegend(); renderStats();
+  renderLegend(); renderStats(); renderColors(k);
   var note='Menampilkan <b>'+ok+'</b> titik pada layer <b>'+d.name+'</b>.';
   if (bad) note+=' '+bad+' baris dilewati (koordinat tidak valid).';
   showMsg(k, bad?'warn':'ok', note);
@@ -299,6 +303,19 @@ function renderLegend(){
     });
   });
   ml.className='map-legend'+(any?' show':''); ml.innerHTML=html;
+}
+function renderColors(k){
+  var d=DS[k], wrap=$('colorWrap-'+k), list=$('colorList-'+k);
+  var cats = (d.plotted && d.colors) ? Object.keys(d.colors) : [];
+  if (!cats.length){ wrap.style.display='none'; list.innerHTML=''; return; }
+  wrap.style.display='flex'; list.innerHTML='';
+  cats.forEach(function(c){
+    var row=document.createElement('label'); row.className='color-row';
+    row.innerHTML='<input type="color" value="'+d.colors[c]+'"><span>'+(c==='(semua)'?'Semua titik':c)+'</span>';
+    var inp=row.querySelector('input');
+    inp.addEventListener('input', function(){ d.userColors=d.userColors||{}; d.userColors[c]=inp.value; plot(k, true); });
+    list.appendChild(row);
+  });
 }
 function renderStats(){
   var s=$('stats'); s.innerHTML='';
